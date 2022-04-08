@@ -2,7 +2,7 @@
 
 - Get torrents Movies & Tvs
 - Get subtitles Movies & Tvs
-- Stream torrents
+- Stream & Download torrents
 
 ## Start
 

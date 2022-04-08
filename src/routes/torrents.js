@@ -421,9 +421,9 @@ const getMovies = async (search) => {
       Data0 = [];
     });
 
-  let Data1 = await TorrentSearchApi.search(search, "All", 2);
-  let Data2 = await TorrentSearchApi.search(search, "Movies", 2);
-  let Data3 = await TorrentSearchApi.search(search, "Video", 2);
+  let Data1 = await TorrentSearchApi.search(search, "All", 7);
+  let Data2 = await TorrentSearchApi.search(search, "Movies", 7);
+  let Data3 = await TorrentSearchApi.search(search, "Video", 7);
 
   return [...Data0, ...Data1, ...Data2, ...Data3];
 };

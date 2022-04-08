@@ -4,72 +4,23 @@ const socketIo = require("socket.io");
 let LocalStorage = require("node-localstorage").LocalStorage;
 let localStorage = new LocalStorage("./localStorage");
 const cors = require("cors");
-let player = require("./model/player");
+
 const subtitleRouter = require("./routes/subtitle");
 const torrentsRouter = require("./routes/torrents");
+const downloadRouter = require("./routes/download");
 
 const port = process.env.PORT || 3001;
-const port2 = process.env.PORT || 3002;
 
 const app = express();
-const app2 = express();
 
 app.set("json spaces", 2);
 app.use(express.json());
 app.use(cors());
 app.use("/subtitle", subtitleRouter);
 app.use("/torrents", torrentsRouter);
+app.use("/download", downloadRouter);
 
 const server = http.createServer(app);
-const server2 = http.createServer(app2);
-
-// ----------------------------------------------------------------------------
-
-const io = require("socket.io")(server2, {
-  cors: {
-    origin: "*",
-  },
-});
-
-let interval;
-
-io.on("connection", (socket) => {
-  console.log("New player connected");
-  if (interval) {
-    clearInterval(interval);
-  }
-
-  interval = setInterval(() => sendDataPlayer(socket), 0);
-
-  socket.on("playerTime", function (playerTime) {
-    console.log(playerTime);
-
-    //     let id = req.query.id,
-    //       time = parseInt(req.query.time);
-    //     localStorage.setItem(id, time);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Player disconnected");
-    clearInterval(interval);
-  });
-});
-
-const sendDataPlayer = (socket) => {
-  let date = new Date();
-  let response = {
-    id: player.id,
-    playing: player.playing,
-    time: date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds(),
-    subtitle: player.subtitle,
-  };
-
-  // let time = await localStorage.getItem(id);
-
-  socket.emit("FromAPI", response);
-};
-
-// ----------------------------------------------------------------------------
 
 const magnetUri = require("magnet-uri");
 const mime = require("mime");
@@ -85,6 +36,7 @@ let keep = true;
 
 let torrents = {};
 let torrentRefs;
+let magnet;
 
 app.get("/", function (req, res) {
   let result = [];
@@ -95,9 +47,7 @@ app.get("/", function (req, res) {
 app.post("/start", async function (req, res) {
   try {
     console.log("Magnet set");
-    player.id = req.body.id;
-    player.magnet = req.body.magnet;
-    player.play();
+    magnet = req.body.magnet;
 
     res.json("Magnet set");
   } catch (err) {
@@ -108,8 +58,6 @@ app.post("/start", async function (req, res) {
 app.post("/setSubtitle", async function (req, res) {
   try {
     console.log("Subtitle set");
-    player.subtitle = req.body.subtitle;
-
     res.json("Magnet set");
   } catch (err) {
     res.json(err.message);
@@ -118,7 +66,6 @@ app.post("/setSubtitle", async function (req, res) {
 
 app.get("/stop", async function (req, res) {
   try {
-    player.stop();
     torrentRefs.removeConnection();
     res.json("Magnet remove");
   } catch (err) {
@@ -136,18 +83,18 @@ app.get("/getInfo", function (req, res) {
 
 app.get("/video", function (req, res) {
   try {
-    const torrent = addTorrent(player.magnet, req.query.download_dir || ".");
+    const torrent = addTorrent(magnet, req.query.download_dir || ".");
 
     torrentRefs = torrent;
     torrent.addConnection();
 
-    // req.on("close", function () {
-    //   torrent.removeConnection();
-    // });
+    req.on("close", function () {
+      torrent.removeConnection();
+    });
 
-    // req.on("end", function () {
-    //   torrent.removeConnection();
-    // });
+    req.on("end", function () {
+      torrent.removeConnection();
+    });
 
     switch (torrent.state) {
       case "downloading":
@@ -379,4 +326,3 @@ function addTorrent(magnetLink, downloadDir) {
 // ----------------------------------------------------------------------------
 
 server.listen(port, () => console.log(`Listening on port ${port}`));
-server2.listen(port2, () => console.log(`Listening on port ${port2}`));

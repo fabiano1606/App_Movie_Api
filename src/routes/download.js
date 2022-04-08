@@ -11,31 +11,74 @@ let PRELOAD_RATIO = 0.005;
 
 const torrents = {};
 
+// router.get("/", function (req, res) {
+//   var result = [];
+//   http
+//     .get(
+//       "http://127.0.0.1:32400/library/sections/4/refresh?X-Plex-Token=qRD3_GXzHRJz4s2cvDPG",
+//       (resp) => {
+//         console.log("atualizando");
+//       }
+//     )
+//     .on("error", (err) => {
+//       console.log("Error: " + err.message);
+//     });
+//   for (var infoHash in torrents) result.push(torrents[infoHash].getInfo());
+//   res.json(result);
+// });
+
 router.get("/", function (req, res) {
   var result = [];
-  http
-    .get(
-      "http://127.0.0.1:32400/library/sections/4/refresh?X-Plex-Token=qRD3_GXzHRJz4s2cvDPG",
-      (resp) => {
-        console.log("atualizando");
-      }
-    )
-    .on("error", (err) => {
-      console.log("Error: " + err.message);
-    });
-  for (var infoHash in torrents) result.push(torrents[infoHash].getInfo());
-  res.json(result);
+  for (var infoHash in torrents) {
+    result.push(torrents[infoHash].getInfo());
+  }
+
+  const response = {
+    ...result,
+  };
+
+  res.status(201).send(response);
+
+  // res.json(result);
+});
+
+router.get("/info", function (req, res) {
+  let movie = req.query.movie;
+
+  var result = [];
+
+  let torrent = torrents.filter(function (item) {
+    return item.tmdb == movie.id;
+  });
+
+  result.push(torrents[torrent.infoHash].getInfo());
+
+  const response = {
+    result: result,
+  };
+
+  res.status(201).send(response);
+
+  // res.json(result);
 });
 
 router.get("/shutdown", function (req, res) {
   shutdown();
 });
 
-router.post("/add", function (req, res) {
-  // req.body.subtitlesList.forEach(function (file) {
-  //   download(file.url, "F:Movies");
-  // });
+function shutdown() {
+  async.forEachOf(
+    torrents,
+    function (value, key, callback) {
+      value.destroy(callback);
+    },
+    function () {
+      console.log("[scrapmagnet] Stopping");
+    }
+  );
+}
 
+router.post("/add", function (req, res) {
   var torrent = addTorrent(
     req.body.torrent.magnet,
     req.body.download_dir || "F:/Movies/",
@@ -54,12 +97,13 @@ function addTorrent(magnetLink, downloadDir, movie) {
     //Efetua a criação do diretório
     fs.mkdirSync(dir);
   }
+  // dir + "/" + torrent.mainFile.name;
 
-  // { path: downloadDir }
   if (!(magnetData.infoHash in torrents)) {
     let torrent = {
-      engine: torrentStream(magnetLink),
+      engine: torrentStream(magnetLink, { path: dir }),
       dn: magnetData.dn,
+      tmdb: movie.id,
       infoHash: magnetData.infoHash,
       state: "metadata",
       connections: 0,
@@ -71,6 +115,7 @@ function addTorrent(magnetLink, downloadDir, movie) {
       var info = {
         dn: this.dn,
         info_hash: this.infoHash,
+        tmdb: this.tmdb,
         state: this.state,
         paused: this.paused,
         downloaded: pretty(this.engine.swarm.downloaded),
@@ -87,7 +132,7 @@ function addTorrent(magnetLink, downloadDir, movie) {
         this.engine.files.forEach(function (file) {
           info.files.push({
             path: file.path,
-            size: file.length,
+            size: pretty(file.length),
             main: file.path == self.mainFile.path,
           });
         });
@@ -103,14 +148,14 @@ function addTorrent(magnetLink, downloadDir, movie) {
           info.piece_map[Math.floor(i / 100)] += this.pieceMap[i];
 
         info.video_ready = this.pieceMap[info.pieces - 1] == "*";
+
         for (var i = 0; i < info.pieces_preload; i++) {
           if (this.pieceMap[i] != "*") {
             info.video_ready = false;
           }
         }
       }
-      console.clear();
-      console.log(info.piece_map);
+
       return info;
     };
 
@@ -118,6 +163,7 @@ function addTorrent(magnetLink, downloadDir, movie) {
       var self = this;
       this.engine.destroy(function () {
         console.log("[scrapmagnet] " + self.dn + ": REMOVED");
+
         if (true) {
           self.engine.remove(function () {
             console.log("[scrapmagnet] " + self.dn + ": DELETED");
@@ -152,8 +198,6 @@ function addTorrent(magnetLink, downloadDir, movie) {
           torrent.mainFile = file;
       });
 
-      var writeStream = fs.createWriteStream(dir + "/" + torrent.mainFile.name);
-
       torrent.mainFile.select();
       // torrent.engine.select(
       //   0,
@@ -165,9 +209,6 @@ function addTorrent(magnetLink, downloadDir, movie) {
       //   torrent.engine.torrent.pieces.length - 1,
       //   true
       // );
-
-      var stream = torrent.mainFile.createReadStream();
-      stream.pipe(writeStream);
 
       // Initialize piece map
       for (var i = 0; i < torrent.engine.torrent.pieces.length; i++)
@@ -188,19 +229,6 @@ function addTorrent(magnetLink, downloadDir, movie) {
   }
 
   return torrents[magnetData.infoHash];
-}
-
-function shutdown() {
-  async.forEachOf(
-    torrents,
-    function (value, key, callback) {
-      value.destroy(callback);
-    },
-    function () {
-      console.log("[scrapmagnet] Stopping");
-      process.exit();
-    }
-  );
 }
 
 module.exports = router;

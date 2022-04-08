@@ -115,7 +115,7 @@ router.get("/subtitle", async function (req, res) {
     const response = {
       subtitles: subtitles,
     };
-    res.header("Access-Control-Allow-Origin", "*");
+
     res.status(201).send(response);
   } catch (err) {
     res.status(500).send(err.message);

@@ -32,6 +32,7 @@
     "socket.io": "^4.4.1",
     "stream-meter": "^1.0.4",
     "string-similarity": "^4.0.4",
+    "torrent-project-api": "^1.0.4",
     "torrent-search-api": "^2.1.4",
     "torrent-stream": "^1.2.1",
     "ws": "^8.5.0",

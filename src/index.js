@@ -4,6 +4,8 @@ const socketIo = require("socket.io");
 let LocalStorage = require("node-localstorage").LocalStorage;
 let localStorage = new LocalStorage("./localStorage");
 const cors = require("cors");
+const pretty = require("prettysize");
+const async = require("async");
 
 const subtitleRouter = require("./routes/subtitle");
 const torrentsRouter = require("./routes/torrents");
@@ -30,56 +32,64 @@ const streamMeter = require("stream-meter");
 const torrentStream = require("torrent-stream");
 
 let PRELOAD_RATIO = 0.005;
-let inactivityPauseTimeout = 2;
-let inactivityRemoveTimeout = 3;
+let inactivityPauseTimeout = 3;
+let inactivityRemoveTimeout = 5;
 let keep = true;
 
-let torrents = {};
+const torrents = {};
 let torrentRefs;
 let magnet;
 
-app.get("/", function (req, res) {
-  let result = [];
-  for (let infoHash in torrents) result.push(torrents[infoHash].getInfo());
-  res.json(result);
-});
+// app.get("/", function (req, res) {
+//   let result = [];
+//   for (let infoHash in torrents) result.push(torrents[infoHash].getInfo());
+//   res.json(result);
+// });
 
 app.post("/start", async function (req, res) {
   try {
     console.log("Magnet set");
-    magnet = req.body.magnet;
+    magnet = req.body.torrent.magnet;
 
-    res.json("Magnet set");
+    res.status(201).send();
   } catch (err) {
     res.json(err.message);
   }
 });
 
-app.post("/setSubtitle", async function (req, res) {
-  try {
-    console.log("Subtitle set");
-    res.json("Magnet set");
-  } catch (err) {
-    res.json(err.message);
-  }
+// app.post("/setSubtitle", async function (req, res) {
+//   try {
+//     console.log("Subtitle set");
+
+//     res.status(201).send();
+//   } catch (err) {
+//     res.json(err.message);
+//   }
+// });
+
+app.get("/shutdown", function (req, res) {
+  shutdown();
 });
 
-app.get("/stop", async function (req, res) {
-  try {
-    torrentRefs.removeConnection();
-    res.json("Magnet remove");
-  } catch (err) {
-    res.json(err.message);
-  }
-});
+function shutdown() {
+  async.forEachOf(
+    torrents,
+    function (value, key, callback) {
+      value.destroy(callback);
+    },
+    function () {
+      console.log("[scrapmagnet] Stopping");
+    }
+  );
+}
 
-app.get("/getInfo", function (req, res) {
-  if (torrentRefs) {
-    res.json(torrentRefs.getInfo());
-  } else {
-    res.json("Magnet not set");
-  }
-});
+// app.get("/getInfo", function (req, res) {
+//   if (torrentRefs) {
+//     res.json(torrentRefs.getInfo());
+//   } else {
+//     res.json("Magnet not set");
+//   }
+// });
 
 app.get("/video", function (req, res) {
   try {
@@ -173,7 +183,9 @@ function addTorrent(magnetLink, downloadDir) {
 
     torrent.addConnection = function () {
       this.connections++;
-      // console.log('[scrapmagnet] ' + this.dn + ': CONNECTION ADDED: ' + this.connections);
+      console.log(
+        "[scrapmagnet] " + this.dn + ": CONNECTION ADDED: " + this.connections
+      );
 
       if (this.mainFile && this.paused) {
         this.mainFile.select();
@@ -187,21 +199,23 @@ function addTorrent(magnetLink, downloadDir) {
 
     torrent.removeConnection = function () {
       this.connections--;
-      // console.log('[scrapmagnet] ' + this.dn + ': CONNECTION REMOVED: ' + this.connections);
+      console.log(
+        "[scrapmagnet] " + this.dn + ": CONNECTION REMOVED: " + this.connections
+      );
 
-      //if (this.connections == 0) {
-      let self = this;
-      this.pauseTimeout = setTimeout(function () {
-        if (self.mainFile && !self.paused) {
-          self.mainFile.deselect();
-          self.paused = true;
-          console.log("[scrapmagnet] " + self.dn + ": PAUSED");
-        }
-        self.removeTimeout = setTimeout(function () {
-          self.destroy();
-        }, inactivityRemoveTimeout * 1000);
-      }, inactivityPauseTimeout * 1000);
-      //}
+      if (this.connections == 0) {
+        let self = this;
+        this.pauseTimeout = setTimeout(function () {
+          if (self.mainFile && !self.paused) {
+            self.mainFile.deselect();
+            self.paused = true;
+            console.log("[scrapmagnet] " + self.dn + ": PAUSED");
+          }
+          self.removeTimeout = setTimeout(function () {
+            self.destroy();
+          }, inactivityRemoveTimeout * 1000);
+        }, inactivityPauseTimeout * 1000);
+      }
 
       clearTimeout(this.servingTimeout);
     };
@@ -212,8 +226,8 @@ function addTorrent(magnetLink, downloadDir) {
         info_hash: this.infoHash,
         state: this.state,
         paused: this.paused,
-        downloaded: this.engine.swarm.downloaded,
-        uploaded: this.engine.swarm.uploaded,
+        downloaded: pretty(this.engine.swarm.downloaded),
+        uploaded: pretty(this.engine.swarm.uploaded),
         download_speed: this.engine.swarm.downloadSpeed() / 1024,
         upload_speed: this.engine.swarm.uploadSpeed() / 1024,
         peers: this.engine.swarm.wires.length,
@@ -226,7 +240,7 @@ function addTorrent(magnetLink, downloadDir) {
         this.engine.files.forEach(function (file) {
           info.files.push({
             path: file.path,
-            size: file.length,
+            size: pretty(file.length),
             main: file.path == self.mainFile.path,
           });
         });

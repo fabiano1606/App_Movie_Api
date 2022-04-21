@@ -21,18 +21,13 @@ router.get("/subtitle", async function (req, res) {
     let subtitles = [];
     let lista = [];
 
-    if (!nameBR && !nameUS && !date) {
-      const response = {
-        message: "Nome nao enviado",
-      };
-      res.status(401).send(response);
-    }
-
     console.log(chalk.green.bold("Searching for subtitles."));
 
     let year = new Date(date).getYear() + 1900;
-    let searchUS = `${nameUS} ${year}`;
-    let searchBR = `${nameBR} ${year}`;
+    let searchUSDate = `${nameUS} ${year}`;
+    let searchBRDate = `${nameBR} ${year}`;
+    let searchUS = nameUS;
+    let searchBR = nameBR;
     let id = await imdbId(nameUS);
 
     OpenSubtitles.login()
@@ -54,6 +49,32 @@ router.get("/subtitle", async function (req, res) {
       console.log(err);
     });
 
+    for (const i in listES) {
+      lista.push(listES[i]);
+    }
+
+    lista.forEach(function (p) {
+      p.forEach(function (sub) {
+        const index = subtitles.findIndex((item) => item.id === sub.id);
+        var similarity = stringSimilarity.compareTwoStrings(
+          searchUS,
+          sub.filename
+        );
+
+        if (index < 0 && similarity >= 0.2) {
+          subtitles.push({
+            id: sub.id,
+            filename: sub.filename,
+            downloads: sub.downloads,
+            language: "pob",
+            url: sub.vtt,
+            label: sub.langcode,
+            score: sub.score,
+          });
+        }
+      });
+    });
+
     let listBR = await OpenSubtitles.search({
       sublanguageid: language,
       extensions: ["srt", "vtt"],
@@ -62,6 +83,110 @@ router.get("/subtitle", async function (req, res) {
       gzip: false,
     }).catch((err) => {
       console.log(err);
+    });
+
+    lista = [];
+
+    for (const i in listBR) {
+      lista.push(listBR[i]);
+    }
+
+    lista.forEach(function (p) {
+      p.forEach(function (sub) {
+        const index = subtitles.findIndex((item) => item.id === sub.id);
+        var similarity = stringSimilarity.compareTwoStrings(
+          searchBR,
+          sub.filename
+        );
+
+        if (index < 0 && similarity >= 0.2) {
+          subtitles.push({
+            id: sub.id,
+            filename: sub.filename,
+            downloads: sub.downloads,
+            language: "pob",
+            url: sub.vtt,
+            label: sub.langcode,
+            score: sub.score,
+          });
+        }
+      });
+    });
+
+    let listESDate = await OpenSubtitles.search({
+      sublanguageid: language,
+      extensions: ["srt", "vtt"],
+      limit: "10",
+      query: searchUSDate,
+      gzip: false,
+    }).catch((err) => {
+      console.log(err);
+    });
+
+    lista = [];
+
+    for (const i in listESDate) {
+      lista.push(listESDate[i]);
+    }
+
+    lista.forEach(function (p) {
+      p.forEach(function (sub) {
+        const index = subtitles.findIndex((item) => item.id === sub.id);
+        var similarity = stringSimilarity.compareTwoStrings(
+          searchUSDate,
+          sub.filename
+        );
+
+        if (index < 0 && similarity >= 0.2) {
+          subtitles.push({
+            id: sub.id,
+            filename: sub.filename,
+            downloads: sub.downloads,
+            language: "pob",
+            url: sub.vtt,
+            label: sub.langcode,
+            score: sub.score,
+          });
+        }
+      });
+    });
+
+    let listBRDate = await OpenSubtitles.search({
+      sublanguageid: language,
+      extensions: ["srt", "vtt"],
+      limit: "10",
+      query: searchBRDate,
+      gzip: false,
+    }).catch((err) => {
+      console.log(err);
+    });
+
+    lista = [];
+
+    for (const i in listBRDate) {
+      lista.push(listBRDate[i]);
+    }
+
+    lista.forEach(function (p) {
+      p.forEach(function (sub) {
+        const index = subtitles.findIndex((item) => item.id === sub.id);
+        var similarity = stringSimilarity.compareTwoStrings(
+          searchBRDate,
+          sub.filename
+        );
+
+        if (index < 0 && similarity >= 0.2) {
+          subtitles.push({
+            id: sub.id,
+            filename: sub.filename,
+            downloads: sub.downloads,
+            language: "pob",
+            url: sub.vtt,
+            label: sub.langcode,
+            score: sub.score,
+          });
+        }
+      });
     });
 
     let listID = await OpenSubtitles.search({
@@ -74,25 +199,19 @@ router.get("/subtitle", async function (req, res) {
       console.log(err);
     });
 
-    for (const i in listES) {
-      lista.push(listES[i]);
-    }
-
-    for (const i in listBR) {
-      lista.push(listBR[i]);
-    }
+    lista = [];
 
     for (const i in listID) {
       lista.push(listID[i]);
     }
 
-    lista.forEach(function (valor) {
-      valor.forEach(function (sub) {
-        const index = subtitles.findIndex((item) => item.id === sub.id);
-        var similarity = stringSimilarity.compareTwoStrings(
-          searchUS,
-          sub.filename
+    lista.forEach(function (p) {
+      p.forEach(function (sub) {
+        const index = subtitles.findIndex(
+          (item) => parseFloat(item.id) === parseFloat(sub.id)
         );
+
+        let similarity = stringSimilarity.compareTwoStrings(id, sub.id);
 
         if (index < 0 && similarity >= 0.2) {
           subtitles.push({

@@ -3,39 +3,97 @@ const xtorrent = require("xtorrent");
 const getmagnet = require("get-magnet");
 const { zooqle } = require("zooqle");
 const stringSimilarity = require("string-similarity");
+const imdbId = require("imdb-id");
 const chalk = require("chalk");
 const express = require("express");
 const router = express.Router();
 
 router.get("/getMovie", async function (req, res) {
   try {
-    console.log(chalk.green.bold("Searching for torrents."));
+    console.log(chalk.green.bold("Searching for torrents Movie."));
 
-    let nameBR = req.query.nameBR;
-    let nameUS = req.query.nameUS;
+    let movie = req.query.movie;
     let date = req.query.date;
     let torrents = [];
     let torrentsEnd = [];
 
-    if (!nameBR && !nameUS && !date) {
-      const response = {
-        message: "Nome nao enviado",
-      };
-      res.status(401).send(response);
-    }
+    // const providers = TorrentSearchApi.getProviders();
+    // console.log(providers);
+    // Get active providers
 
     let year = new Date(date).getYear() + 1900;
-    let search = nameUS + " " + year;
+    let search = movie + " " + year;
 
-    let Data0 = await getMovies(search);
+    TorrentSearchApi.enableProvider("1337x"); // movie = "All"  "Movies"
+    TorrentSearchApi.enableProvider("Rarbg"); //movie = 'All' 'Movies'
+    TorrentSearchApi.enableProvider("Eztv"); //movie = 'All'
+    TorrentSearchApi.enableProvider("Limetorrents"); // movie = 'All'  'Movies'
+    TorrentSearchApi.enableProvider("ThePirateBay"); //movie = 'All'  'Video'
+    TorrentSearchApi.enableProvider("Yts"); //movie = 'All'
+    TorrentSearchApi.enableProvider("KickassTorrents"); //movie = 'All'  'Movies'
+    TorrentSearchApi.enableProvider("Torrent9"); //movie = 'All'  'Movies'
+
+    let Data0 = [];
     let Data1 = [];
-    let Data2 = [];
 
-    if (Data0.length < 5) Data1 = await getMovies(search.replace(":", ""));
+    // const activeProviders = TorrentSearchApi.getActiveProviders();
+    // console.log(activeProviders);
 
-    if (Data0.length < 5) Data2 = await getMovies(nameUS);
+    // let Data0 = [];
+    // await zooqle
+    //   .search(search)
+    //   .then((response) => {
+    //     let data = response.searchResponse.searchResults;
+    //     for (let i in data) {
+    //       if (data[i].seeders > 10)
+    //         Data0.push({
+    //           provider: "Zooqle",
+    //           title: data[i].title,
+    //           seeds: data[i].seeders,
+    //           size: data[i].size,
+    //           magnet: data[i].magnet,
+    //         });
+    //     }
+    //   })
+    //   .catch((error) => {
+    //     Data0 = [];
+    //   });
 
-    let DataEnd = [...Data0, ...Data1, ...Data2];
+    Data0 = await TorrentSearchApi.search(
+      [
+        "1337x",
+        "Eztv",
+        "Rarbg",
+        "Limetorrents",
+        "ThePirateBay",
+        "KickassTorrents",
+        "Yts",
+        "Torrent9",
+      ],
+      search,
+      "All",
+      15
+    );
+
+    if (Data0.length < 10) {
+      Data1 = await TorrentSearchApi.search(
+        [
+          "1337x",
+          "Eztv",
+          "Rarbg",
+          "Limetorrents",
+          "ThePirateBay",
+          "KickassTorrents",
+          "Yts",
+          "Torrent9",
+        ],
+        search.replace(":", ""),
+        "All",
+        5
+      );
+    }
+
+    let DataEnd = [...Data0, ...Data1];
 
     for (let i in DataEnd) {
       let torrent = DataEnd[i];
@@ -59,6 +117,18 @@ router.get("/getMovie", async function (req, res) {
             seeds: info.seeders,
             size: info.size,
             magnet: info.download.magnet,
+          });
+        } catch {}
+      }
+
+      if (torrent.provider === "Torrent9") {
+        try {
+          let info = await getmagnet.get(torrent.desc);
+          torrents.push({
+            title: torrent.title,
+            seeds: torrent.seeds,
+            size: torrent.size,
+            magnet: info.magnet,
           });
         } catch {}
       }
@@ -87,18 +157,6 @@ router.get("/getMovie", async function (req, res) {
       if (torrent.provider === "Yts") {
         try {
           let info = await getmagnet.get(torrent.desc);
-          torrents.push({
-            title: torrent.title,
-            seeds: torrent.seeds,
-            size: torrent.size,
-            magnet: info.magnet,
-          });
-        } catch {}
-      }
-
-      if (torrent.provider === "TorrentProject") {
-        try {
-          let info = await getmagnet.TorrentProject(torrent.desc);
           torrents.push({
             title: torrent.title,
             seeds: torrent.seeds,
@@ -137,19 +195,19 @@ router.get("/getMovie", async function (req, res) {
     }
 
     torrents.forEach((torrent, index) => {
-      var similarity = stringSimilarity.compareTwoStrings(
-        search,
-        torrent.title.substring(0, torrent.title.length / 2)
-      );
+      let title = torrent.title;
+      if (title.length > 30) title = title.substring(0, title.length / 2);
 
-      if (similarity >= 0.2 && torrent.seeds >= 5) {
-        const index = torrentsEnd.findIndex(
+      let similarity = stringSimilarity.compareTwoStrings(search, title);
+
+      if (similarity >= 0.25 && parseFloat(torrent.seeds) >= 5) {
+        let index = torrentsEnd.findIndex(
           (item) => item.magnet === torrent.magnet
         );
         if (index < 0) {
           torrentsEnd.push({
             title: torrent.title,
-            seeds: torrent.seeds,
+            seeds: parseFloat(torrent.seeds),
             size: torrent.size,
             magnet: torrent.magnet,
           });
@@ -181,22 +239,23 @@ router.get("/getTV", async function (req, res) {
     TorrentSearchApi.enableProvider("ThePirateBay"); //movie = 'All'
     TorrentSearchApi.enableProvider("Yts"); //movie = 'All'
 
-    console.log(chalk.green.bold("Searching for torrents."));
+    console.log(chalk.green.bold("Searching for torrents Serial."));
 
-    let nameUS = "The Simpsons";
-    let season = 1;
-    let episode = 1;
+    let serial = req.query.serial;
+    let Seasom = req.query.Seasom;
+    let Episode = req.query.Episode;
+
     let torrents = [];
     let torrentsEnd = [];
 
     let search =
-      nameUS +
+      serial +
       " S" +
-      (season + "").padStart(2, "0") +
+      (Seasom + "").padStart(2, "0") +
       "E" +
-      (episode + "").padStart(2, "0");
+      (Episode + "").padStart(2, "0");
 
-    let id = await imdbId(nameUS);
+    let id = await imdbId(serial);
     let dataHref;
 
     if (id)
@@ -206,12 +265,14 @@ router.get("/getTV", async function (req, res) {
           let data = response.showResponse.seasons;
 
           const index = data.findIndex(
-            (item) => item.season === "Season " + season
+            (item) => item.season === "Season " + Seasom
           );
 
-          dataHref = data[index].episodes[episode].dataHref;
+          dataHref = data[index].episodes[Episode].dataHref;
         })
-        .catch(() => {});
+        .catch(() => {
+          console.log("erro zooqle");
+        });
 
     if (dataHref)
       await zooqle
@@ -227,7 +288,9 @@ router.get("/getTV", async function (req, res) {
             });
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          console.log("erro zooqle");
+        });
 
     await zooqle
       .search(search)
@@ -243,11 +306,13 @@ router.get("/getTV", async function (req, res) {
           });
         }
       })
-      .catch((error) => {});
+      .catch((error) => {
+        console.log("erro zooqle");
+      });
 
-    let Data1 = await TorrentSearchApi.search(search, "All", 5);
-    let Data2 = await TorrentSearchApi.search(search, "TV", 5);
-    let Data3 = await TorrentSearchApi.search(search, "Video", 5);
+    let Data1 = await TorrentSearchApi.search(search, "All", 10);
+    let Data2 = await TorrentSearchApi.search(search, "TV", 10);
+    let Data3 = await TorrentSearchApi.search(search, "Video", 10);
 
     let Data4 = [...Data1, ...Data2, ...Data3];
 
@@ -392,40 +457,5 @@ router.get("/getTV", async function (req, res) {
     res.status(500).send(response);
   }
 });
-
-const getMovies = async (search) => {
-  TorrentSearchApi.enableProvider("1337x"); // movie = "All"
-  TorrentSearchApi.enableProvider("Rarbg"); //movie = 'All'
-  TorrentSearchApi.enableProvider("Eztv"); //movie = 'all'
-  TorrentSearchApi.enableProvider("Limetorrents"); // movie = 'all'
-  TorrentSearchApi.enableProvider("ThePirateBay"); //movie = 'All'
-  TorrentSearchApi.enableProvider("Yts"); //movie = 'All'
-
-  let Data0 = [];
-  await zooqle
-    .search(search)
-    .then((response) => {
-      let data = response.searchResponse.searchResults;
-      for (let i in data) {
-        if (data[i].seeders > 10)
-          Data0.push({
-            provider: "Zooqle",
-            title: data[i].title,
-            seeds: data[i].seeders,
-            size: data[i].size,
-            magnet: data[i].magnet,
-          });
-      }
-    })
-    .catch((error) => {
-      Data0 = [];
-    });
-
-  let Data1 = await TorrentSearchApi.search(search, "All", 7);
-  let Data2 = await TorrentSearchApi.search(search, "Movies", 7);
-  let Data3 = await TorrentSearchApi.search(search, "Video", 7);
-
-  return [...Data0, ...Data1, ...Data2, ...Data3];
-};
 
 module.exports = router;

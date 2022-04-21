@@ -57,16 +57,6 @@ app.post("/start", async function (req, res) {
   }
 });
 
-// app.post("/setSubtitle", async function (req, res) {
-//   try {
-//     console.log("Subtitle set");
-
-//     res.status(201).send();
-//   } catch (err) {
-//     res.json(err.message);
-//   }
-// });
-
 app.get("/shutdown", function (req, res) {
   shutdown();
 });

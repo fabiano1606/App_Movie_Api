@@ -5,11 +5,13 @@ const express = require("express");
 const router = express.Router();
 var fs = require("fs");
 const pretty = require("prettysize");
-
 const http = require("http");
-let PRELOAD_RATIO = 0.005;
 
 const torrents = {};
+let PRELOAD_RATIO = 0.005;
+let keep = true;
+
+// PLEX
 
 // router.get("/", function (req, res) {
 //   var result = [];
@@ -40,6 +42,14 @@ router.get("/", function (req, res) {
   res.status(201).send(response);
 
   // res.json(result);
+});
+
+router.get("/InfoAll", function (req, res) {
+  if (torrents) {
+    res.json(torrents.getInfo());
+  } else {
+    res.json("Magnet not set");
+  }
 });
 
 router.get("/info", function (req, res) {
@@ -73,7 +83,7 @@ function shutdown() {
       value.destroy(callback);
     },
     function () {
-      console.log("[scrapmagnet] Stopping");
+      console.log("Stopping");
     }
   );
 }
@@ -162,11 +172,11 @@ function addTorrent(magnetLink, downloadDir, movie) {
     torrent.destroy = function (callback) {
       var self = this;
       this.engine.destroy(function () {
-        console.log("[scrapmagnet] " + self.dn + ": REMOVED");
+        console.log(self.dn + ": REMOVED");
 
-        if (true) {
+        if (keep) {
           self.engine.remove(function () {
-            console.log("[scrapmagnet] " + self.dn + ": DELETED");
+            console.log(self.dn + ": DELETED");
             delete torrents[self.infoHash];
             if (callback) callback();
           });
@@ -185,7 +195,7 @@ function addTorrent(magnetLink, downloadDir, movie) {
       if (torrent.state == "downloading" && !torrent.paused) {
         torrent.state = "finished";
 
-        console.log("[scrapmagnet] " + torrent.dn + ": FINISHED");
+        console.log(torrent.dn + ": FINISHED");
       }
     });
 
@@ -215,17 +225,17 @@ function addTorrent(magnetLink, downloadDir, movie) {
         if (!torrent.pieceMap[i]) torrent.pieceMap[i] = ".";
 
       clearTimeout(torrent.metadataTimeout);
-      console.log("[scrapmagnet] " + torrent.dn + ": METADATA RECEIVED");
+      console.log(torrent.dn + ": METADATA RECEIVED");
     });
 
     torrent.metadataTimeout = setTimeout(function () {
       torrent.state = "failed";
-      console.log("[scrapmagnet] " + torrent.dn + ": METADATA FAILED");
+      console.log(torrent.dn + ": METADATA FAILED");
     }, 20000);
 
     torrents[torrent.infoHash] = torrent;
 
-    console.log("[scrapmagnet] " + torrent.dn + ": ADDED");
+    console.log(torrent.dn + ": ADDED");
   }
 
   return torrents[magnetData.infoHash];

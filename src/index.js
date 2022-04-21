@@ -68,18 +68,38 @@ function shutdown() {
       value.destroy(callback);
     },
     function () {
-      console.log("[scrapmagnet] Stopping");
+      console.log("Stopping");
     }
   );
 }
 
-// app.get("/getInfo", function (req, res) {
-//   if (torrentRefs) {
-//     res.json(torrentRefs.getInfo());
-//   } else {
-//     res.json("Magnet not set");
-//   }
-// });
+router.get("/InfoAll", function (req, res) {
+  if (torrentRefs) {
+    res.json(torrentRefs.getInfo());
+  } else {
+    res.json("Magnet not set");
+  }
+});
+
+router.get("/info", function (req, res) {
+  let movie = req.query.movie;
+
+  var result = [];
+
+  let torrent = torrents.filter(function (item) {
+    return item.tmdb == movie.id;
+  });
+
+  result.push(torrents[torrent.infoHash].getInfo());
+
+  const response = {
+    result: result,
+  };
+
+  res.status(201).send(response);
+
+  // res.json(result);
+});
 
 app.get("/video", function (req, res) {
   try {
@@ -119,7 +139,7 @@ app.get("/video", function (req, res) {
             clearInterval(torrent.meterInterval);
             if (!torrent.serving) {
               torrent.serving = true;
-              console.log("[scrapmagnet] " + torrent.dn + ": SERVING");
+              console.log(torrent.dn + ": SERVING");
             }
           }
         }, 1000);
@@ -173,14 +193,12 @@ function addTorrent(magnetLink, downloadDir) {
 
     torrent.addConnection = function () {
       this.connections++;
-      console.log(
-        "[scrapmagnet] " + this.dn + ": CONNECTION ADDED: " + this.connections
-      );
+      console.log(this.dn + ": CONNECTION ADDED: " + this.connections);
 
       if (this.mainFile && this.paused) {
         this.mainFile.select();
         this.paused = false;
-        console.log("[scrapmagnet] " + this.dn + ": RESUMED");
+        console.log(this.dn + ": RESUMED");
       }
 
       clearTimeout(this.pauseTimeout);
@@ -189,9 +207,7 @@ function addTorrent(magnetLink, downloadDir) {
 
     torrent.removeConnection = function () {
       this.connections--;
-      console.log(
-        "[scrapmagnet] " + this.dn + ": CONNECTION REMOVED: " + this.connections
-      );
+      console.log(this.dn + ": CONNECTION REMOVED: " + this.connections);
 
       if (this.connections == 0) {
         let self = this;
@@ -199,7 +215,7 @@ function addTorrent(magnetLink, downloadDir) {
           if (self.mainFile && !self.paused) {
             self.mainFile.deselect();
             self.paused = true;
-            console.log("[scrapmagnet] " + self.dn + ": PAUSED");
+            console.log(self.dn + ": PAUSED");
           }
           self.removeTimeout = setTimeout(function () {
             self.destroy();
@@ -264,18 +280,18 @@ function addTorrent(magnetLink, downloadDir) {
       if (torrent.state == "downloading" && !torrent.paused) {
         torrent.state = "finished";
 
-        console.log("[scrapmagnet] " + torrent.dn + ": FINISHED");
+        console.log(torrent.dn + ": FINISHED");
       }
     });
 
     torrent.destroy = function (callback) {
       let self = this;
       this.engine.destroy(function () {
-        console.log("[scrapmagnet] " + self.dn + ": REMOVED");
+        console.log(self.dn + ": REMOVED");
 
         if (!keep) {
           self.engine.remove(function () {
-            console.log("[scrapmagnet] " + self.dn + ": DELETED");
+            console.log(self.dn + ": DELETED");
             delete torrents[self.infoHash];
             if (callback) callback();
           });
@@ -311,17 +327,17 @@ function addTorrent(magnetLink, downloadDir) {
         if (!torrent.pieceMap[i]) torrent.pieceMap[i] = ".";
 
       clearTimeout(torrent.metadataTimeout);
-      console.log("[scrapmagnet] " + torrent.dn + ": METADATA RECEIVED");
+      console.log(torrent.dn + ": METADATA RECEIVED");
     });
 
     torrent.metadataTimeout = setTimeout(function () {
       torrent.state = "failed";
-      console.log("[scrapmagnet] " + torrent.dn + ": METADATA FAILED");
+      console.log(torrent.dn + ": METADATA FAILED");
     }, 20000);
 
     torrents[torrent.infoHash] = torrent;
 
-    console.log("[scrapmagnet] " + torrent.dn + ": ADDED");
+    console.log(torrent.dn + ": ADDED");
   }
 
   return torrents[magnetData.infoHash];
